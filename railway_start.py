@@ -1,5 +1,6 @@
 import runpy
 from pathlib import Path
+
 from message_reactions_patch import patch_app as patch_message_features
 from reaction_commands_patch import patch_app_file as patch_reaction_commands
 from announcement_embed_patch import patch_app_file as patch_announcement
@@ -24,33 +25,33 @@ import web_server
 from web_server import start_website
 
 ROOT = Path(__file__).resolve().parent
-APP_FILE = ROOT / 'app.py'
-WELCOME_FILE = ROOT / 'welcome_system.py'
-SECURITY_FILE = ROOT / 'premium_security_system.py'
-WEB_APP_JS = ROOT / 'website' / 'assets' / 'app.js'
+APP_FILE = ROOT / "app.py"
+WELCOME_FILE = ROOT / "welcome_system.py"
+SECURITY_FILE = ROOT / "premium_security_system.py"
+WEB_APP_JS = ROOT / "website" / "assets" / "app.js"
 
 
 def fix_welcome_async_declaration():
-    source = WELCOME_FILE.read_text(encoding='utf-8')
-    broken, fixed = '\ndef configure_welcome(', '\nasync def configure_welcome('
+    source = WELCOME_FILE.read_text(encoding="utf-8")
+    broken, fixed = "\ndef configure_welcome(", "\nasync def configure_welcome("
     if broken in source and fixed not in source:
-        WELCOME_FILE.write_text(source.replace(broken, fixed, 1), encoding='utf-8')
-        print('Corregida la declaración async de configure_welcome.')
+        WELCOME_FILE.write_text(source.replace(broken, fixed, 1), encoding="utf-8")
+        print("Corregida la declaración async de configure_welcome.")
 
 
 def fix_optional_import():
-    source = SECURITY_FILE.read_text(encoding='utf-8')
-    if 'Optional[' in source and 'from typing import Optional' not in source:
-        marker = 'from pathlib import Path\n'
+    source = SECURITY_FILE.read_text(encoding="utf-8")
+    if "Optional[" in source and "from typing import Optional" not in source:
+        marker = "from pathlib import Path\n"
         if marker not in source:
-            raise RuntimeError('No encontré el bloque de imports de premium_security_system.py')
-        SECURITY_FILE.write_text(source.replace(marker, marker + 'from typing import Optional\n', 1), encoding='utf-8')
-        print('Corregido el import de Optional en premium_security_system.py.')
+            raise RuntimeError("No encontré el bloque de imports de premium_security_system.py")
+        SECURITY_FILE.write_text(source.replace(marker, marker + "from typing import Optional\n", 1), encoding="utf-8")
+        print("Corregido el import de Optional en premium_security_system.py.")
 
 
 def main():
     if not APP_FILE.is_file():
-        raise FileNotFoundError(f'No encontré el archivo del bot: {APP_FILE}')
+        raise FileNotFoundError(f"No encontré el archivo del bot: {APP_FILE}")
     fix_welcome_async_declaration()
     fix_optional_import()
     remove_backup_commands(APP_FILE)
@@ -68,16 +69,16 @@ def main():
     patch_separate_button_messages(APP_FILE)
     patch_channel_nuke(APP_FILE)
     install_bot_status_hooks(APP_FILE)
-    final_source = APP_FILE.read_text(encoding='utf-8')
-    required = ('class GiveawayView(', 'import website_runtime_features', 'register_channel_nuke(tree)')
+    final_source = APP_FILE.read_text(encoding="utf-8")
+    required = ("class GiveawayView(", "import website_runtime_features", "register_channel_nuke(tree)", "apply_ticket_image_to_panel(interaction.guild, embed)")
     missing = [item for item in required if item not in final_source]
     if missing:
-        raise RuntimeError(f'No se instalaron los componentes requeridos: {missing}')
-    if 'async def handle_reaction_command(message, content):' in final_source:
-        optional = ('if command == "?kill":', 'class KillRoleplayView(', 'label="💀 Vengar"', 'label="👻 Asustar"')
+        raise RuntimeError(f"No se instalaron los componentes requeridos: {missing}")
+    if "async def handle_reaction_command(message, content):" in final_source:
+        optional = ('if command == "?kill":', "class KillRoleplayView(", 'label="💀 Vengar"', 'label="👻 Asustar"')
         missing_optional = [item for item in optional if item not in final_source]
         if missing_optional:
-            raise RuntimeError(f'No se instalaron los componentes opcionales de roleplay: {missing_optional}')
+            raise RuntimeError(f"No se instalaron los componentes opcionales de roleplay: {missing_optional}")
 
     install_guild_profile_settings(web_server.Handler)
     install_profile_upload_support(web_server.Handler)
@@ -89,9 +90,9 @@ def main():
     install_website_assets()
     install_dynamic_tab_support(WEB_APP_JS)
     start_website()
-    print('Iniciando Vantarmor Commands...')
-    runpy.run_path(str(APP_FILE), run_name='__main__')
+    print("Iniciando Vantarmor Commands...")
+    runpy.run_path(str(APP_FILE), run_name="__main__")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
