@@ -14,6 +14,7 @@ from dedupe_backup_command import remove_backup_commands
 from kill_roleplay_buttons_patch import patch_app_file as patch_kill_roleplay_buttons
 from giveaway_patch import patch_app_file as patch_giveaway
 from separate_reaction_button_messages import patch_app_file as patch_separate_button_messages
+from channel_nuke import patch_app_file as patch_channel_nuke
 from website_runtime_features import (
     install_bot_status_hooks,
     install_dynamic_tab_support,
@@ -74,6 +75,7 @@ def main():
     patch_kill_roleplay_buttons(APP_FILE)
     patch_giveaway(APP_FILE)
     patch_separate_button_messages(APP_FILE)
+    patch_channel_nuke(APP_FILE)
     install_bot_status_hooks(APP_FILE)
 
     final_source = APP_FILE.read_text(encoding="utf-8")
@@ -82,6 +84,7 @@ def main():
     required_handlers = (
         "class GiveawayView(",
         "import website_runtime_features",
+        "register_channel_nuke(tree)",
     )
     missing = [item for item in required_handlers if item not in final_source]
     if missing:
