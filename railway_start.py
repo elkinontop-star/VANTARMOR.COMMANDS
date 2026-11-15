@@ -77,19 +77,26 @@ def main():
     install_bot_status_hooks(APP_FILE)
 
     final_source = APP_FILE.read_text(encoding="utf-8")
+    # These are startup requirements. Reaction/roleplay patches are optional
+    # because some app.py versions do not include the reaction handler they patch.
     required_handlers = (
-        "async def handle_reaction_command(message, content):",
-        'if await handle_reaction_command(message, content):',
-        'if command == "?kill":',
-        "class KillRoleplayView(",
-        'label="💀 Vengar"',
-        'label="👻 Asustar"',
         "class GiveawayView(",
         "import website_runtime_features",
     )
     missing = [item for item in required_handlers if item not in final_source]
     if missing:
-        raise RuntimeError(f"No se instalaron los comandos requeridos: {missing}")
+        raise RuntimeError(f"No se instalaron los componentes requeridos: {missing}")
+
+    if "async def handle_reaction_command(message, content):" in final_source:
+        required_roleplay = (
+            'if command == "?kill":',
+            "class KillRoleplayView(",
+            'label="💀 Vengar"',
+            'label="👻 Asustar"',
+        )
+        missing_roleplay = [item for item in required_roleplay if item not in final_source]
+        if missing_roleplay:
+            raise RuntimeError(f"No se instalaron los componentes opcionales de roleplay: {missing_roleplay}")
 
     install_guild_profile_settings(web_server.Handler)
     install_profile_upload_support(web_server.Handler)
