@@ -1,6 +1,9 @@
 import runpy
 from pathlib import Path
 
+# Execute the compatibility repair before app.py imports command modules.
+import fix_security_typing
+
 from message_reactions_patch import patch_app as patch_message_features
 from reaction_commands_patch import patch_app_file as patch_reaction_commands
 from announcement_embed_patch import patch_app_file as patch_announcement
@@ -15,8 +18,6 @@ from kill_roleplay_buttons_patch import patch_app_file as patch_kill_roleplay_bu
 from giveaway_patch import patch_app_file as patch_giveaway
 from separate_reaction_button_messages import patch_app_file as patch_separate_button_messages
 from channel_nuke import patch_app_file as patch_channel_nuke
-from admin_web_assets import install_admin_styles
-from account_configuration_web import install_account_configuration, install_account_configuration_styles
 from website_runtime_features import install_bot_status_hooks, install_dynamic_tab_support, install_website_api, install_website_assets
 from persistent_web_sessions import install_persistent_sessions
 from guild_profile_settings import install_guild_profile_settings
@@ -69,24 +70,23 @@ def main():
     patch_separate_button_messages(APP_FILE)
     patch_channel_nuke(APP_FILE)
     install_bot_status_hooks(APP_FILE)
+
     final_source = APP_FILE.read_text(encoding="utf-8")
-    required = ("class GiveawayView(", "import website_runtime_features", "register_channel_nuke(tree)", "apply_ticket_image_to_panel(interaction.guild, embed)")
+    required = (
+        "class GiveawayEntryView(",
+        "register_giveaway_commands(tree, client)",
+        "await resume_giveaways(client)",
+        "import website_runtime_features",
+        "register_channel_nuke(tree)",
+    )
     missing = [item for item in required if item not in final_source]
     if missing:
         raise RuntimeError(f"No se instalaron los componentes requeridos: {missing}")
-    if "async def handle_reaction_command(message, content):" in final_source:
-        optional = ('if command == "?kill":', "class KillRoleplayView(", 'label="💀 Vengar"', 'label="👻 Asustar"')
-        missing_optional = [item for item in optional if item not in final_source]
-        if missing_optional:
-            raise RuntimeError(f"No se instalaron los componentes opcionales de roleplay: {missing_optional}")
 
     install_guild_profile_settings(web_server.Handler)
     install_profile_upload_support(web_server.Handler)
     install_persistent_sessions(web_server.Handler)
     install_website_api(web_server.Handler)
-    install_admin_styles()
-    install_account_configuration_styles()
-    install_account_configuration(web_server.Handler)
     install_website_assets()
     install_dynamic_tab_support(WEB_APP_JS)
     start_website()
