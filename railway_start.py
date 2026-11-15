@@ -11,6 +11,7 @@ from premium_backup_patch import patch_app_file as patch_premium_features
 from premium_key_commands_patch import patch_app_file as remove_premium_key_commands
 from global_commands_patch import patch_app_file as patch_global_commands
 from ticket_image_patch import patch_app_file as patch_ticket_image
+from premium_command_latency_patch import patch_ticket_image_system, patch_backup_command
 from blue_reaction_embeds_patch import patch_app_file as patch_blue_reaction_embeds
 from premium_security_patch import patch_app_file as patch_premium_security
 from dedupe_backup_command import remove_backup_commands
@@ -31,6 +32,7 @@ ROOT = Path(__file__).resolve().parent
 APP_FILE = ROOT / "app.py"
 WELCOME_FILE = ROOT / "welcome_system.py"
 SECURITY_FILE = ROOT / "premium_security_system.py"
+TICKET_IMAGE_FILE = ROOT / "ticket_image_system.py"
 GIVEAWAY_FILE = ROOT / "giveaway_system.py"
 WEB_APP_JS = ROOT / "website" / "assets" / "app.js"
 
@@ -63,8 +65,10 @@ def main():
     patch_reaction_commands(APP_FILE)
     patch_announcement(APP_FILE)
     patch_premium_features(APP_FILE)
+    patch_backup_command(APP_FILE)
     remove_premium_key_commands(APP_FILE)
     patch_ticket_image(APP_FILE)
+    patch_ticket_image_system(TICKET_IMAGE_FILE)
     patch_blue_reaction_embeds(APP_FILE)
     patch_premium_security(APP_FILE)
     patch_global_commands(APP_FILE)
