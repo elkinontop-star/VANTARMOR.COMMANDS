@@ -1,0 +1,5 @@
+/* Small additive styles for live service statistics. */
+#estado .stats article { min-height: 112px; transition: border-color .2s, transform .2s; }
+#estado .stats article:hover { transform: translateY(-3px); border-color: rgba(69,230,255,.35); }
+#estado .stats strong { color: #f3f8ff; }
+#estado .stats .online { color: #77f0b0; }

@@ -1,0 +1,7 @@
+/* Independent layout polish for the Free and Premium plan cards. */
+.plans-section .plans-grid, .plans-section > div { align-items: stretch; }
+.plan-card { position: relative; overflow: hidden; min-height: 270px; }
+.plan-card::after { position: absolute; top: -72px; right: -72px; width: 150px; height: 150px; border-radius: 50%; background: rgba(69,230,255,.07); filter: blur(30px); content: ''; pointer-events: none; }
+.premium-plan::after { background: rgba(173,114,255,.13); }
+.plan-card li::marker { color: #62e9ff; }
+.premium-plan li::marker { color: #c59aff; }
