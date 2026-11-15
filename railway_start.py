@@ -29,6 +29,7 @@ ROOT = Path(__file__).resolve().parent
 APP_FILE = ROOT / "app.py"
 WELCOME_FILE = ROOT / "welcome_system.py"
 SECURITY_FILE = ROOT / "premium_security_system.py"
+GIVEAWAY_FILE = ROOT / "giveaway_system.py"
 WEB_APP_JS = ROOT / "website" / "assets" / "app.js"
 
 
@@ -72,14 +73,22 @@ def main():
     install_bot_status_hooks(APP_FILE)
 
     final_source = APP_FILE.read_text(encoding="utf-8")
-    required = (
-        "class GiveawayEntryView(",
+    giveaway_source = GIVEAWAY_FILE.read_text(encoding="utf-8")
+    # Giveaway UI lives in giveaway_system.py; only its import/registration is
+    # injected into app.py by giveaway_patch.py. Validate each in its own file.
+    required_app = (
+        "from giveaway_system import register_giveaway_commands, register_advanced_giveaway_commands, resume_giveaways",
         "register_giveaway_commands(tree, client)",
+        "register_advanced_giveaway_commands(tree, client)",
         "await resume_giveaways(client)",
         "import website_runtime_features",
         "register_channel_nuke(tree)",
     )
-    missing = [item for item in required if item not in final_source]
+    missing = [item for item in required_app if item not in final_source]
+    if "class GiveawayEntryView(" not in giveaway_source:
+        missing.append("class GiveawayEntryView( in giveaway_system.py")
+    if "name=\"sorteo-avanzado\"" not in giveaway_source:
+        missing.append("/sorteo-avanzado registration in giveaway_system.py")
     if missing:
         raise RuntimeError(f"No se instalaron los componentes requeridos: {missing}")
 
