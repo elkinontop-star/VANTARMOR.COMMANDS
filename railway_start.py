@@ -23,6 +23,7 @@ from website_runtime_features import install_bot_status_hooks, install_dynamic_t
 from persistent_web_sessions import install_persistent_sessions
 from guild_profile_settings import install_guild_profile_settings
 from profile_upload_support import install_profile_upload_support
+from brand_intro import install_brand_intro
 import web_server
 from web_server import start_website
 
@@ -100,6 +101,7 @@ def main():
 
     install_guild_profile_settings(web_server.Handler)
     install_profile_upload_support(web_server.Handler)
+    install_brand_intro()
     install_persistent_sessions(web_server.Handler)
     install_website_api(web_server.Handler)
     install_website_assets()
