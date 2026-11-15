@@ -16,6 +16,7 @@ from premium_security_patch import patch_app_file as patch_premium_security
 from dedupe_backup_command import remove_backup_commands
 from kill_roleplay_buttons_patch import patch_app_file as patch_kill_roleplay_buttons
 from giveaway_patch import patch_app_file as patch_giveaway
+from cookie_game_patch import patch_app_file as patch_cookie_game
 from separate_reaction_button_messages import patch_app_file as patch_separate_button_messages
 from channel_nuke import patch_app_file as patch_channel_nuke
 from website_runtime_features import install_bot_status_hooks, install_dynamic_tab_support, install_website_api, install_website_assets
@@ -68,27 +69,32 @@ def main():
     patch_global_commands(APP_FILE)
     patch_kill_roleplay_buttons(APP_FILE)
     patch_giveaway(APP_FILE)
+    patch_cookie_game(APP_FILE)
     patch_separate_button_messages(APP_FILE)
     patch_channel_nuke(APP_FILE)
     install_bot_status_hooks(APP_FILE)
 
     final_source = APP_FILE.read_text(encoding="utf-8")
     giveaway_source = GIVEAWAY_FILE.read_text(encoding="utf-8")
+    cookie_source = (ROOT / "cookie_game_system.py").read_text(encoding="utf-8")
     required_app = (
         "from giveaway_system import register_giveaway_commands, register_advanced_giveaway_commands, resume_giveaways",
         "register_giveaway_commands(tree, client)",
         "register_advanced_giveaway_commands(tree, client)",
         "await resume_giveaways(client)",
+        "register_cookie_game(tree)",
         "import website_runtime_features",
         "register_channel_nuke(tree)",
     )
     missing = [item for item in required_app if item not in final_source]
     if "class GiveawayEntryView(" not in giveaway_source:
         missing.append("class GiveawayEntryView( in giveaway_system.py")
-    # The command is registered through a helper; inspect its actual dispatch
-    # instead of searching for the command decorator literal.
     if 'return _register_giveaway(tree, bot, "sorteo-avanzado"' not in giveaway_source:
         missing.append("/sorteo-avanzado registration in giveaway_system.py")
+    if "class CookieRaceView(" not in cookie_source or "name=\"game\"" not in cookie_source:
+        missing.append("/cookie game registration in cookie_game_system.py")
+    if "name=\"userinfo\"" not in cookie_source:
+        missing.append("/userinfo registration in cookie_game_system.py")
     if missing:
         raise RuntimeError(f"No se instalaron los componentes requeridos: {missing}")
 
