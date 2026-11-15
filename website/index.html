@@ -6,9 +6,9 @@
   <meta name="theme-color" content="#050505">
   <meta name="description" content="Vantarmor Commands: herramientas de moderación y seguridad para comunidades de Discord.">
   <title>Vantarmor Commands</title>
-  <link rel="stylesheet" href="/assets/style.css?v=4">
-  <link rel="stylesheet" href="/assets/plans.css?v=4">
-  <script src="/assets/app.js?v=4" defer></script>
+  <link rel="stylesheet" href="/assets/style.css?v=5">
+  <link rel="stylesheet" href="/assets/plans.css?v=5">
+  <script src="/assets/app.js?v=5" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -54,7 +54,7 @@
       <p class="eyebrow">ELIGE TU PLAN</p><h2>Planes</h2><p class="plans-intro">Empieza gratis y activa Premium con una key.</p>
       <div class="plans-grid">
         <article class="plan-card"><span class="plan-tag">PLAN 01</span><h3>Free Plan</h3><p class="plan-summary">Funciones disponibles para empezar a proteger tu servidor.</p><ul><li>Comandos gratuitos</li><li>Herramientas de comunidad</li><li>Invitación del bot a tus servidores</li></ul></article>
-        <article class="plan-card premium-plan"><span class="plan-tag">PLAN 02 · PREMIUM</span><h3>Premium Plan</h3><p class="plan-summary">Desbloquea funciones Premium en tu cuenta de Discord.</p><ul><li>Funciones Premium del bot</li><li>Protecciones avanzadas</li><li>Canje de key desde tu cuenta web</li></ul></article>
+        <article class="plan-card premium-plan"><span class="plan-tag">PLAN 02 · PREMIUM</span><h3>Premium Plan</h3><p class="plan-summary">Desbloquea funciones Premium en tu cuenta de Discord.</p><ul><li>Funciones Premium del bot</li><li>Protecciones avanzadas</li><li>Canje de key desde tu cuenta web</li></ul><a class="button secondary" href="https://discord.gg/YD7uY3AHz" target="_blank" rel="noopener">Consultar en Discord ↗</a></article>
       </div>
       <article class="redeem-card" id="canjear-key">
         <div><p class="eyebrow">¿TIENES UNA KEY?</p><h3>Canjea Premium</h3><p>Inicia sesión con Discord y pega tu key para activar Premium en esa cuenta.</p></div>
@@ -75,7 +75,12 @@
     <section class="section account" id="cuenta">
       <p class="eyebrow">TU CUENTA</p><h2>Cuenta de Discord</h2>
       <article id="profile-card" class="profile"><div class="avatar">?</div><div><strong id="profile-name">No has iniciado sesión</strong><p id="profile-plan">Inicia sesión para consultar tu cuenta y canjear Premium.</p></div></article>
-      <div class="account-actions"><a class="button" id="account-login" href="/auth/discord">Iniciar sesión con Discord</a></div>
+      <div class="account-actions"><a class="button" id="account-login" href="/auth/discord">Iniciar sesión con Discord</a><a class="button secondary" id="admin-panel-link" href="/admin" hidden>Administración Premium</a></div>
+      <div id="account-admin-tools" hidden>
+        <p class="eyebrow account-admin-heading">HERRAMIENTAS DE ADMINISTRACIÓN</p>
+        <p>Genera o revoca keys y accesos Premium, y cambia el apodo o la imagen del bot por servidor.</p>
+        <a class="button" href="/admin">Abrir panel de administración ↗</a>
+      </div>
     </section>
   </main>
   <footer><span class="brand">VANTARMOR <strong>COMMANDS</strong></span><a href="https://discord.gg/YD7uY3AHz" target="_blank" rel="noopener">Soporte en Discord ↗</a></footer>
