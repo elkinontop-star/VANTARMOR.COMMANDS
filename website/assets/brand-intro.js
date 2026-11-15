@@ -8,16 +8,18 @@
   [...text].forEach((letter, index) => {
     const span = document.createElement('span');
     span.textContent = letter;
-    if (letter === '.') span.className = 'brand-dot';
+    if (letter === '.') span.classList.add('brand-dot');
     wordmark.appendChild(span);
-    window.setTimeout(() => span.classList.add('is-visible'), 1900 + index * 55);
+    window.setTimeout(() => span.classList.add('is-visible'), 700 + index * 55);
   });
 
-  window.setTimeout(() => visual.classList.add('is-active'), 650);
-  window.setTimeout(() => logo.classList.add('is-spinning'), 850);
   window.setTimeout(() => {
-    logo.hidden = true;
+    visual.classList.add('is-active');
+    logo.classList.add('is-spinning');
+  }, 250);
+
+  window.setTimeout(() => {
     wordmark.classList.add('is-active');
-    window.setTimeout(() => wordmark.classList.add('is-turning'), 1900 + text.length * 55 + 250);
-  }, 1850);
+    window.setTimeout(() => wordmark.classList.add('is-turning'), 600 + text.length * 55);
+  }, 1200);
 })();

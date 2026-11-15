@@ -11,18 +11,18 @@ def install_brand_intro():
     html = index.read_text(encoding="utf-8")
     marker = '<div class="brand-intro-visual"'
     if marker not in html:
-        anchor = '<section id="inicio" class="hero">'
+        anchor = '<main>'
         if anchor not in html:
-            raise RuntimeError("No encontré la sección principal para añadir la animación Vantarmor.")
+            raise RuntimeError("No encontré el bloque principal para añadir la marca animada.")
         visual = '''<div class="brand-intro-visual" aria-hidden="true">
       <div class="brand-intro-vortex"></div>
       <div class="brand-intro-logo"><span>V</span></div>
       <div class="brand-intro-wordmark"></div>
     </div>'''
-        html = html.replace(anchor, anchor + visual, 1)
+        html = html.replace(anchor, visual + anchor, 1)
 
-    css_tag = '<link rel="stylesheet" href="/assets/brand-intro.css?v=1">'
-    js_tag = '<script src="/assets/brand-intro.js?v=1" defer></script>'
+    css_tag = '<link rel="stylesheet" href="/assets/brand-intro.css?v=2">'
+    js_tag = '<script src="/assets/brand-intro.js?v=2" defer></script>'
     if css_tag not in html:
         html = html.replace("</head>", f"  {css_tag}\n</head>", 1)
     if js_tag not in html:
