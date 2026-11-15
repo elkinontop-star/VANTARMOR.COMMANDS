@@ -128,20 +128,49 @@ def install_website_assets():
 
 
 def install_dynamic_tab_support(app_js):
+    app_js.parent.mkdir(parents=True, exist_ok=True)
+    if not app_js.exists():
+        app_js.write_text("""
+document.addEventListener('DOMContentLoaded', () => {
+  const menuToggle = document.getElementById('menu-toggle');
+  const nav = document.getElementById('nav');
+  if (menuToggle && nav) {
+    menuToggle.addEventListener('click', () => {
+      const expanded = menuToggle.getAttribute('aria-expanded') === 'true';
+      menuToggle.setAttribute('aria-expanded', String(!expanded));
+      nav.classList.toggle('open', !expanded);
+    });
+  }
+
+  const accountCard = document.getElementById('profile-card');
+  const getText = (value, fallback) => value ?? fallback;
+
+  fetch('/api/stats').then((res) => res.ok ? res.json() : null).then((stats) => {
+    if (!stats) return;
+    const online = document.querySelector('#estado .online');
+    if (online) online.textContent = stats.bot_online ? 'Operativo' : 'Sin conexión';
+  }).catch(() => {});
+
+  fetch('/api/me').then((res) => {
+    if (!res.ok) return;
+    return res.json();
+  }).then((session) => {
+    if (!session || !session.authenticated || !accountCard) return;
+    const avatar = document.getElementById('profile-avatar') || accountCard.querySelector('.avatar');
+    const name = document.getElementById('profile-name');
+    if (avatar) avatar.textContent = getText(session.user.name, 'User').slice(0, 1).toUpperCase();
+    if (name) name.textContent = getText(session.user.name, 'Usuario');
+  }).catch(() => {});
+});
+""".strip() + "\n", encoding="utf-8")
+        return
     source = app_js.read_text(encoding="utf-8")
     source = source.replace('const tabSections = [...document.querySelectorAll("main > section[id]")];', 'const getTabSections = () => [...document.querySelectorAll("main > section[id]")];')
     source = source.replace('  const active = tabSections.find((section) => section.id === id) || tabSections[0];', '  const tabSections = getTabSections();\n  const active = tabSections.find((section) => section.id === id) || tabSections[0];')
     if "window.activateTab = activateTab;" not in source:
         source = source.replace("function toast(message) {", "window.activateTab = activateTab;\n\nfunction toast(message) {", 1)
-    # Account profile settings are restricted to bot-installed guilds.
     source = source.replace('const result = await api("/api/guilds");', 'const result = await api("/api/settings/guilds");')
     source = source.replace('const result = await api("/api/settings/guilds");', 'const result = await api("/api/settings/guilds");')
-    # Invite selector gets all manageable servers, including servers needing bot install.
-    source = source.replace(
-        'select.replaceChildren(new Option("Elige un servidor (opcional)", ""), ...guilds.data.guilds.map((guild) => new Option(guild.name, guild.id)));',
-        'select.replaceChildren(new Option("Elige un servidor", ""), ...guilds.data.guilds.map((guild) => new Option(guild.bot_installed ? `${guild.name} · Vantarmor conectado` : `${guild.name} · invitar Vantarmor`, guild.id)));',
-    )
-    # Replace the generated account API call if earlier revisions used settings route.
     marker = "// VANTARMOR_INVITE_AFTER_LOGIN_V1"
     if marker not in source:
         source = source.replace(
@@ -173,10 +202,6 @@ def install_dynamic_tab_support(app_js):
   }
 '''
         source = source.replace(auth_anchor, auth_anchor + auth_code, 1)
-        source = source.replace(
-            'select.replaceChildren(new Option("Elige un servidor (opcional)", ""), ...guilds.data.guilds.map((guild) => new Option(guild.name, guild.id)));',
-            'select.replaceChildren(new Option("Elige un servidor", ""), ...guilds.data.guilds.map((guild) => new Option(guild.bot_installed ? `${guild.name} · Vantarmor conectado` : `${guild.name} · invitar Vantarmor`, guild.id)));',
-        )
     app_js.write_text(source, encoding="utf-8")
 
 
