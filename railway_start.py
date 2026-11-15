@@ -74,8 +74,6 @@ def main():
 
     final_source = APP_FILE.read_text(encoding="utf-8")
     giveaway_source = GIVEAWAY_FILE.read_text(encoding="utf-8")
-    # Giveaway UI lives in giveaway_system.py; only its import/registration is
-    # injected into app.py by giveaway_patch.py. Validate each in its own file.
     required_app = (
         "from giveaway_system import register_giveaway_commands, register_advanced_giveaway_commands, resume_giveaways",
         "register_giveaway_commands(tree, client)",
@@ -87,7 +85,9 @@ def main():
     missing = [item for item in required_app if item not in final_source]
     if "class GiveawayEntryView(" not in giveaway_source:
         missing.append("class GiveawayEntryView( in giveaway_system.py")
-    if "name=\"sorteo-avanzado\"" not in giveaway_source:
+    # The command is registered through a helper; inspect its actual dispatch
+    # instead of searching for the command decorator literal.
+    if 'return _register_giveaway(tree, bot, "sorteo-avanzado"' not in giveaway_source:
         missing.append("/sorteo-avanzado registration in giveaway_system.py")
     if missing:
         raise RuntimeError(f"No se instalaron los componentes requeridos: {missing}")
