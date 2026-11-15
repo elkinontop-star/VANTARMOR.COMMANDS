@@ -2,8 +2,14 @@
   const main = document.querySelector('main');
   const nav = document.getElementById('nav');
   const toast = document.getElementById('toast');
+  const adminPanelLink = document.getElementById('admin-panel-link');
+  const profileSettings = document.getElementById('bot-profile-settings');
   let csrfToken = '';
   let isAuthenticated = false;
+
+  // Hide privileged and account-only controls before any asynchronous request.
+  if (adminPanelLink) adminPanelLink.hidden = true;
+  if (profileSettings) profileSettings.hidden = true;
 
   const showMessage = (element, text, isError = false) => {
     if (!element) return;
@@ -58,8 +64,7 @@
   const loadGuildOptions = async () => {
     const select = document.getElementById('guild-profile-select');
     const status = document.getElementById('guild-profile-status');
-    if (!select) return;
-    if (!isAuthenticated) { select.replaceChildren(new Option('Inicia sesión para continuar', '')); return; }
+    if (!select || !isAuthenticated) return;
     try {
       const result = await api('/api/settings/guilds');
       select.replaceChildren(new Option(result.guilds.length ? 'Selecciona un servidor' : 'No hay servidores elegibles', ''));
@@ -67,6 +72,23 @@
       if (!result.guilds.length) showMessage(status, 'No se encontró un servidor donde seas administrador y Vantarmor esté conectado.', true);
       else showMessage(status, 'Configuración visual gratuita disponible en estos servidores.');
     } catch (error) { select.replaceChildren(new Option('No se pudieron cargar servidores', '')); showMessage(status, error.message, true); }
+  };
+
+  const loadInviteGuilds = async () => {
+    const select = document.getElementById('guild-select'); const inviteButton = document.getElementById('invite-button');
+    if (!select || !isAuthenticated) return;
+    try {
+      const result = await api('/api/guilds');
+      select.replaceChildren(new Option('Elige un servidor', ''), ...result.guilds.map((guild) => new Option(guild.name, guild.id)));
+      const config = await api('/config.json'); const clientId = config.bot_client_id;
+      const updateInvite = () => {
+        if (!clientId || !inviteButton) return;
+        const url = new URL('https://discord.com/oauth2/authorize');
+        url.search = new URLSearchParams({ client_id: clientId, permissions: '8', scope: 'bot applications.commands', ...(select.value ? { guild_id: select.value, disable_guild_select: 'true' } : {}) }).toString();
+        inviteButton.href = url.toString(); inviteButton.target = '_blank'; inviteButton.rel = 'noopener';
+      };
+      select.addEventListener('change', updateInvite); if (clientId) updateInvite(); if (inviteButton) inviteButton.textContent = 'Invitar bot';
+    } catch (_) { select.replaceChildren(new Option('No se pudieron cargar los servidores', '')); }
   };
 
   const login = async () => {
@@ -83,28 +105,16 @@
       const profileName = document.getElementById('profile-name'); if (profileName) profileName.textContent = name;
       const profilePlan = document.getElementById('profile-plan'); if (profilePlan) profilePlan.textContent = session.is_premium ? 'Premium activo' : 'Cuenta conectada · la configuración visual es gratuita';
       for (const id of ['login-link', 'account-login']) { const link = document.getElementById(id); if (link) { link.href = '/auth/logout'; link.textContent = 'Cerrar sesión'; } }
-      const managerLink = document.getElementById('admin-panel-link');
-      if (managerLink && session.is_admin) managerLink.hidden = false;
+      // Reveal the premium-admin link only for a valid session explicitly authorized by Railway.
+      if (adminPanelLink) adminPanelLink.hidden = session.is_admin !== true;
+      if (profileSettings) profileSettings.hidden = false;
       const redeemStatus = document.getElementById('redeem-status'); showMessage(redeemStatus, 'Cuenta conectada. Introduce tu key Premium para canjearla.');
       await loadGuildOptions(); await loadInviteGuilds();
-    } catch (_) { /* Public page works even when account login is unavailable. */ }
-  };
-
-  const loadInviteGuilds = async () => {
-    const select = document.getElementById('guild-select'); const inviteButton = document.getElementById('invite-button');
-    if (!select || !isAuthenticated) return;
-    try {
-      const result = await api('/api/guilds');
-      select.replaceChildren(new Option('Elige un servidor', ''), ...result.guilds.map((guild) => new Option(guild.name, guild.id)));
-      const config = await api('/config.json'); const clientId = config.bot_client_id;
-      const updateInvite = () => {
-        if (!clientId) return;
-        const url = new URL('https://discord.com/oauth2/authorize');
-        url.search = new URLSearchParams({ client_id: clientId, permissions: '8', scope: 'bot applications.commands', ...(select.value ? { guild_id: select.value, disable_guild_select: 'true' } : {}) }).toString();
-        inviteButton.href = url.toString(); inviteButton.target = '_blank'; inviteButton.rel = 'noopener';
-      };
-      select.addEventListener('change', updateInvite); if (clientId) updateInvite(); if (inviteButton) inviteButton.textContent = 'Invitar bot';
-    } catch (_) { select.replaceChildren(new Option('No se pudieron cargar los servidores', '')); }
+    } catch (_) {
+      // Fail closed: never show manager controls if session lookup fails.
+      if (adminPanelLink) adminPanelLink.hidden = true;
+      if (profileSettings) profileSettings.hidden = true;
+    }
   };
 
   document.getElementById('premium-key-form')?.addEventListener('submit', async (event) => {
