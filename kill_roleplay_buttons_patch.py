@@ -95,10 +95,9 @@ def patch_app_file(app_file: Path) -> None:
     source = app_file.read_text(encoding="utf-8")
     handler = "async def handle_reaction_command(message, content):\n"
     if handler not in source:
-        raise RuntimeError("No encontré el manejador de comandos de reacción en app.py.")
+        print("No encontré el manejador de comandos de reacción en app.py; omito el parche de roleplay.")
+        return
 
-    # Replace any prior generated version if present; otherwise insert the view
-    # before the handler, so the patch works even when earlier helpers differ.
     source = re.sub(
         r'(?ms)^class KillRoleplayView\(discord\.ui\.View\):\n.*?(?=^class |^async def handle_reaction_command)',
         "",
@@ -112,7 +111,8 @@ def patch_app_file(app_file: Path) -> None:
     if not found:
         insertion = '    if command not in ("?kiss", "?slap"):\n'
         if insertion not in source:
-            raise RuntimeError("No encontré un punto válido para instalar ?kill.")
+            print("No encontré un punto válido para instalar ?kill; omito el parche.")
+            return
         source = source.replace(insertion, KILL_HANDLER + "\n" + insertion, 1)
 
     source = _add_gif_action(
