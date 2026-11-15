@@ -15,6 +15,7 @@ from kill_roleplay_buttons_patch import patch_app_file as patch_kill_roleplay_bu
 from giveaway_patch import patch_app_file as patch_giveaway
 from separate_reaction_button_messages import patch_app_file as patch_separate_button_messages
 from channel_nuke import patch_app_file as patch_channel_nuke
+from admin_web_assets import install_admin_styles
 from website_runtime_features import (
     install_bot_status_hooks,
     install_dynamic_tab_support,
@@ -35,24 +36,20 @@ WEB_APP_JS = ROOT / "website" / "assets" / "app.js"
 
 
 def fix_welcome_async_declaration():
-    """Repair the async welcome configurator before app.py imports it."""
     source = WELCOME_FILE.read_text(encoding="utf-8")
-    broken = "\ndef configure_welcome("
-    fixed = "\nasync def configure_welcome("
+    broken, fixed = "\ndef configure_welcome(", "\nasync def configure_welcome("
     if broken in source and fixed not in source:
         WELCOME_FILE.write_text(source.replace(broken, fixed, 1), encoding="utf-8")
         print("Corregida la declaración async de configure_welcome.")
 
 
 def fix_optional_import():
-    """Ensure security command annotations can resolve Optional at import time."""
     source = SECURITY_FILE.read_text(encoding="utf-8")
     if "Optional[" in source and "from typing import Optional" not in source:
         marker = "from pathlib import Path\n"
         if marker not in source:
             raise RuntimeError("No encontré el bloque de imports de premium_security_system.py")
-        source = source.replace(marker, marker + "from typing import Optional\n", 1)
-        SECURITY_FILE.write_text(source, encoding="utf-8")
+        SECURITY_FILE.write_text(source.replace(marker, marker + "from typing import Optional\n", 1), encoding="utf-8")
         print("Corregido el import de Optional en premium_security_system.py.")
 
 
@@ -62,7 +59,6 @@ def main():
     fix_welcome_async_declaration()
     fix_optional_import()
     remove_backup_commands(APP_FILE)
-
     patch_message_features(APP_FILE)
     patch_reaction_commands(APP_FILE)
     patch_announcement(APP_FILE)
@@ -79,32 +75,21 @@ def main():
     install_bot_status_hooks(APP_FILE)
 
     final_source = APP_FILE.read_text(encoding="utf-8")
-    # These are startup requirements. Reaction/roleplay patches are optional
-    # because some app.py versions do not include the reaction handler they patch.
-    required_handlers = (
-        "class GiveawayView(",
-        "import website_runtime_features",
-        "register_channel_nuke(tree)",
-    )
-    missing = [item for item in required_handlers if item not in final_source]
+    required = ("class GiveawayView(", "import website_runtime_features", "register_channel_nuke(tree)")
+    missing = [item for item in required if item not in final_source]
     if missing:
         raise RuntimeError(f"No se instalaron los componentes requeridos: {missing}")
-
     if "async def handle_reaction_command(message, content):" in final_source:
-        required_roleplay = (
-            'if command == "?kill":',
-            "class KillRoleplayView(",
-            'label="💀 Vengar"',
-            'label="👻 Asustar"',
-        )
-        missing_roleplay = [item for item in required_roleplay if item not in final_source]
-        if missing_roleplay:
-            raise RuntimeError(f"No se instalaron los componentes opcionales de roleplay: {missing_roleplay}")
+        optional = ('if command == "?kill":', "class KillRoleplayView(", 'label="💀 Vengar"', 'label="👻 Asustar"')
+        missing_optional = [item for item in optional if item not in final_source]
+        if missing_optional:
+            raise RuntimeError(f"No se instalaron los componentes opcionales de roleplay: {missing_optional}")
 
     install_guild_profile_settings(web_server.Handler)
     install_profile_upload_support(web_server.Handler)
     install_persistent_sessions(web_server.Handler)
     install_website_api(web_server.Handler)
+    install_admin_styles()
     install_website_assets()
     install_dynamic_tab_support(WEB_APP_JS)
     start_website()

@@ -1,4 +1,4 @@
-"""Server-scoped bot profile settings exposed to the signed-in account page.
+"""Server-scoped bot profile settings exposed to the manager-only admin page.
 
 These update the bot's guild member profile only (guild nickname and guild
 avatar), never the bot's global username/avatar.
@@ -25,12 +25,7 @@ def _discord_json(path, *, token, method="GET", payload=None):
         DISCORD_API + path,
         data=body,
         method=method,
-        headers={
-            "Authorization": f"Bot {token}",
-            "Accept": "application/json",
-            "User-Agent": "Vantarmor-Commands/1.0",
-            **({"Content-Type": "application/json"} if body is not None else {}),
-        },
+        headers={"Authorization": f"Bot {token}", "Accept": "application/json", "User-Agent": "Vantarmor-Commands/1.0", **({"Content-Type": "application/json"} if body is not None else {})},
     )
     with urllib.request.urlopen(request, timeout=12) as response:
         raw = response.read(1024 * 1024)
@@ -81,19 +76,13 @@ def _download_avatar(url):
     return f"data:image/{mime};base64,{base64.b64encode(image_data).decode('ascii')}"
 
 
-def _manageable_guild_ids(handler, session):
+def _manageable_guild_ids(session):
+    import web_server
     try:
-        # discord_request is a module helper; handler.server is the HTTPServer instance.
-        import web_server
         guilds = web_server.discord_request("/users/@me/guilds", token=session["access_token"])
     except (urllib.error.HTTPError, urllib.error.URLError, OSError, ValueError):
         raise ValueError("No pude consultar tus servidores de Discord; inicia sesión otra vez.")
-    result = {}
-    for guild in guilds:
-        permissions = int(guild.get("permissions", "0"))
-        if guild.get("owner") or permissions & (0x8 | 0x20):
-            result[str(guild["id"])] = guild.get("name", "Servidor")
-    return result
+    return {str(guild["id"]): guild.get("name", "Servidor") for guild in guilds if guild.get("owner") or int(guild.get("permissions", "0")) & (0x8 | 0x20)}
 
 
 def _bot_member_token(guild_id):
@@ -108,19 +97,19 @@ def _bot_member_token(guild_id):
 
 
 def install_guild_profile_settings(handler_class):
-    """Expose account settings, enforcing user authority and bot guild membership."""
-    old_get = handler_class.do_GET
-    old_post = handler_class.do_POST
+    """Expose manager-only profile controls, limited to manageable bot guilds."""
+    old_get, old_post = handler_class.do_GET, handler_class.do_POST
 
     def do_get(self):
-        path = urllib.parse.urlparse(self.path).path
-        if path != "/api/settings/guilds":
+        if urllib.parse.urlparse(self.path).path != "/api/settings/guilds":
             return old_get(self)
         session = self.get_session()
         if not session:
             return self.send_error_json("Inicia sesión con Discord.", 401)
+        if not self.require_admin(session):
+            return self.send_error_json("Solo los PREMIUM_MANAGER_IDS pueden aplicar estos cambios.", 403)
         try:
-            manageable = _manageable_guild_ids(self, session)
+            manageable = _manageable_guild_ids(session)
             present = []
             for guild_id, name in manageable.items():
                 try:
@@ -133,39 +122,39 @@ def install_guild_profile_settings(handler_class):
             return self.send_error_json(str(error), 502)
 
     def do_post(self):
-        path = urllib.parse.urlparse(self.path).path
-        if path != "/api/settings/guild-profile":
+        if urllib.parse.urlparse(self.path).path != "/api/settings/guild-profile":
             return old_post(self)
         session = self.get_session()
         if not session:
             return self.send_error_json("Inicia sesión con Discord primero.", 401)
+        if not self.require_admin(session):
+            return self.send_error_json("Solo los PREMIUM_MANAGER_IDS pueden aplicar estos cambios.", 403)
         if not self.require_csrf(session):
             return self.send_error_json("Verificación de seguridad fallida. Recarga e inténtalo otra vez.", 403)
         try:
             data = self.read_json_body()
             guild_id = str(data.get("guild_id", ""))
             nickname = str(data.get("nickname", "")).strip()
-            avatar_url = str(data.get("avatar_url", "")).strip()
+            avatar_data = str(data.get("avatar_url", "")).strip()
             if not guild_id.isdecimal():
                 raise ValueError("Selecciona un servidor válido.")
             if len(nickname) > 32:
                 raise ValueError("El apodo no puede superar 32 caracteres.")
-            manageable = _manageable_guild_ids(self, session)
+            manageable = _manageable_guild_ids(session)
             if guild_id not in manageable:
-                raise ValueError("Debes ser propietario o administrador del servidor seleccionado.")
+                raise ValueError("No tienes permisos de administración en ese servidor.")
             token = _bot_member_token(guild_id)
+            # Recheck bot membership immediately before modifying the guild profile.
             payload = {"nick": nickname or None}
-            if avatar_url:
-                payload["avatar"] = _download_avatar(avatar_url)
-            else:
-                payload["avatar"] = None
+            if avatar_data:
+                payload["avatar"] = _download_avatar(avatar_data)
             _discord_json(f"/guilds/{guild_id}/members/@me", token=token, method="PATCH", payload=payload)
-            return self.send_json({"ok": True, "message": f"Cambios aplicados únicamente al perfil del bot en **{manageable[guild_id]}**."})
+            return self.send_json({"ok": True, "message": f"Apodo e imagen aplicados únicamente en {manageable[guild_id]}."})
         except (ValueError, json.JSONDecodeError) as error:
             return self.send_error_json(str(error), 400)
         except urllib.error.HTTPError as error:
             if error.code == 403:
-                return self.send_error_json("Discord rechazó el cambio. Comprueba permisos del bot y jerarquía de roles.", 403)
+                return self.send_error_json("Discord rechazó el cambio. Revisa permisos y configuración del bot.", 403)
             return self.send_error_json("Discord no pudo actualizar el perfil del bot.", 502)
         except (urllib.error.URLError, OSError) as error:
             return self.send_error_json("No se pudo conectar con Discord.", 502)
