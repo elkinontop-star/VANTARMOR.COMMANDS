@@ -14,7 +14,6 @@ from discord import app_commands
 DATA_DIR = Path(os.getenv("VANTARMOR_DATA_DIR", "."))
 STORE = DATA_DIR / "giveaways.json"
 _STORE_LOCK = threading.RLock()
-_END_LOCK = asyncio.Lock()
 _TASKS = {}
 
 
@@ -56,10 +55,10 @@ def _save(state):
         tmp.replace(STORE)
 
 
-def _embed(state, *, ended=None, winners=None):
+def _embed(state, *, ended=None, winners=None, guild_name=None):
     ended = state.get("ended", False) if ended is None else ended
     embed = discord.Embed(
-        title="🎉 Sorteo terminado" if ended else "🎉 Sorteo",
+        title="🎉 Sorteo finalizado" if ended else "🎉 Sorteo",
         description=state["message"],
         color=discord.Color.blurple(),
         timestamp=discord.utils.utcnow(),
@@ -68,7 +67,10 @@ def _embed(state, *, ended=None, winners=None):
     embed.add_field(name="Ganadores", value=str(state["winner_count"]), inline=True)
     embed.add_field(name="Participantes", value=str(len(state.get("entries", []))), inline=True)
     if ended:
-        embed.add_field(name="Resultado", value=(", ".join(f"<@{uid}>" for uid in winners) if winners else "No hubo participantes."), inline=False)
+        mentions = ", ".join(f"<@{uid}>" for uid in (winners or []))
+        embed.description = f"**{state['prize']}**\n\n{mentions + ' han ganado su premio. ¡Felicidades!' if mentions else 'No hubo participantes. ¡Gracias por participar!'}"
+        if guild_name:
+            embed.set_footer(text=f"Sorteo de {guild_name}")
     else:
         embed.add_field(name="Termina", value=f"<t:{int(state['ends_at'])}:R>", inline=True)
         embed.set_footer(text="Pulsa 🎉 Participar para entrar o volver a pulsar para salir.")
@@ -106,48 +108,99 @@ class GiveawayEntryView(discord.ui.View):
         await interaction.response.send_message(reply, ephemeral=True)
 
 
+async def _server_invite(guild, preferred_channel=None):
+    """Create a no-expiration invite for the winners' DM link button, if allowed."""
+    channels = ([preferred_channel] if preferred_channel else []) + list(guild.text_channels)
+    seen = set()
+    for channel in channels:
+        if channel is None or channel.id in seen:
+            continue
+        seen.add(channel.id)
+        try:
+            if channel.permissions_for(guild.me).create_instant_invite:
+                invite = await channel.create_invite(max_age=0, max_uses=0, unique=True, reason="Invitación del resultado de un sorteo")
+                return invite.url
+        except (discord.Forbidden, discord.HTTPException):
+            continue
+    return getattr(guild, "vanity_url", None)
+
+
+async def _notify_winners(bot, guild, state, winners, preferred_channel=None):
+    if not winners:
+        return
+    invite_url = await _server_invite(guild, preferred_channel)
+    for user_id in winners:
+        try:
+            user = bot.get_user(int(user_id)) or await bot.fetch_user(int(user_id))
+            embed = discord.Embed(
+                title="🎉 ¡Felicidades, ganaste el sorteo!",
+                description=f"Has ganado **{state['prize']}** en el servidor **{guild.name}**. ¡Felicidades!",
+                color=discord.Color.green(),
+            )
+            view = None
+            if invite_url:
+                view = discord.ui.View(timeout=None)
+                view.add_item(discord.ui.Button(label="Ir al servidor", style=discord.ButtonStyle.link, url=invite_url))
+            await user.send(embed=embed, view=view)
+        except (discord.Forbidden, discord.HTTPException, ValueError) as error:
+            # DMs may be disabled or the user may have blocked the bot; the public result remains available.
+            print(f"No se pudo enviar DM al ganador {user_id}: {type(error).__name__}")
+
+
 async def _finish_giveaway(bot, message_id):
-    async with _END_LOCK:
+    state = _get(message_id)
+    if not state or state.get("ended"):
+        return
+    delay = float(state["ends_at"]) - time.time()
+    if delay > 0:
+        await asyncio.sleep(delay)
         state = _get(message_id)
         if not state or state.get("ended"):
             return
-        delay = float(state["ends_at"]) - time.time()
-        if delay > 0:
-            await asyncio.sleep(delay)
-            state = _get(message_id)
-            if not state or state.get("ended"):
-                return
-        entries = list(dict.fromkeys(state.get("entries", [])))
-        winners = random.sample(entries, min(int(state["winner_count"]), len(entries))) if entries else []
-        state["ended"] = True
-        state["winners"] = winners
-        try:
-            _save(state)
-        except OSError as error:
-            print(f"No se pudo guardar el fin del sorteo {message_id}: {type(error).__name__}")
-            return
-        channel = bot.get_channel(int(state["channel_id"]))
-        try:
-            if channel is None:
-                channel = await bot.fetch_channel(int(state["channel_id"]))
-            message = await channel.fetch_message(int(message_id))
-            view = GiveawayEntryView()
-            for item in view.children:
-                item.disabled = True
-            await message.edit(embed=_embed(state, ended=True, winners=winners), view=view)
-            if winners:
-                await channel.send(
-                    "🎊 Ganador(es) de **" + state["prize"] + "**: " + ", ".join(f"<@{uid}>" for uid in winners),
-                    allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False),
-                )
-        except (discord.NotFound, discord.Forbidden, discord.HTTPException) as error:
-            print(f"No se pudo publicar el resultado del sorteo {message_id}: {type(error).__name__}")
+    entries = list(dict.fromkeys(state.get("entries", [])))
+    winners = random.sample(entries, min(int(state["winner_count"]), len(entries))) if entries else []
+    state["ended"] = True
+    state["winners"] = winners
+    try:
+        _save(state)
+    except OSError as error:
+        print(f"No se pudo guardar el fin del sorteo {message_id}: {type(error).__name__}")
+        return
+
+    channel = bot.get_channel(int(state["channel_id"]))
+    guild = bot.get_guild(int(state["guild_id"]))
+    try:
+        if channel is None:
+            channel = await bot.fetch_channel(int(state["channel_id"]))
+        if guild is None:
+            guild = await bot.fetch_guild(int(state["guild_id"]))
+        guild_name = guild.name
+        message = await channel.fetch_message(int(message_id))
+        view = GiveawayEntryView()
+        for item in view.children:
+            item.disabled = True
+        await message.edit(embed=_embed(state, ended=True, winners=winners, guild_name=guild_name), view=view)
+        if winners:
+            public_embed = discord.Embed(
+                title="🏆 ¡Tenemos ganadores!",
+                description=f"**Premio:** {state['prize']}\n\n{', '.join(f'<@{uid}>' for uid in winners)} han ganado su premio. ¡Felicidades!",
+                color=discord.Color.gold(),
+            )
+            public_embed.set_footer(text=f"Sorteo de {guild_name}")
+            await channel.send(
+                embed=public_embed,
+                allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False),
+            )
+            await _notify_winners(bot, guild, state, winners, preferred_channel=channel)
+    except (discord.NotFound, discord.Forbidden, discord.HTTPException) as error:
+        print(f"No se pudo publicar el resultado del sorteo {message_id}: {type(error).__name__}")
 
 
 def _schedule(bot, message_id):
-    task = _TASKS.get(str(message_id))
+    key = str(message_id)
+    task = _TASKS.get(key)
     if task is None or task.done():
-        _TASKS[str(message_id)] = asyncio.create_task(_finish_giveaway(bot, int(message_id)))
+        _TASKS[key] = asyncio.create_task(_finish_giveaway(bot, int(message_id)))
 
 
 async def resume_giveaways(bot):
@@ -187,6 +240,7 @@ def _register_giveaway(tree, bot, command_name: str, command_description: str, *
         now = time.time()
         state = {
             "guild_id": interaction.guild.id,
+            "guild_name": interaction.guild.name,
             "channel_id": interaction.channel.id,
             "message_id": 0,
             "created_by": interaction.user.id,
