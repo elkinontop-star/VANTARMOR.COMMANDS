@@ -160,19 +160,19 @@ async def resume_giveaways(bot):
             _schedule(bot, int(state["message_id"]))
 
 
-def register_giveaway_commands(tree, bot):
+def _register_giveaway(tree, bot, command_name: str, command_description: str, *, advanced: bool = False):
     if not getattr(bot, "giveaway_view_registered", False):
         bot.add_view(GiveawayEntryView())
         bot.giveaway_view_registered = True
 
-    @tree.command(name="sorteo", description="Crea un sorteo gratuito con botón para participar")
+    @tree.command(name=command_name, description=command_description)
     @app_commands.describe(
         ganadores="Cantidad de ganadores (1 a 25)",
         duracion="Duración: 1m, 1h, 1d, 1w, 1mo o 1year (máximo 1 año)",
         mensaje="Mensaje que aparecerá en el embed",
         premio="Qué se sortea",
     )
-    async def sorteo(interaction: discord.Interaction, ganadores: app_commands.Range[int, 1, 25], duracion: str, mensaje: str, premio: str):
+    async def giveaway_command(interaction: discord.Interaction, ganadores: app_commands.Range[int, 1, 25], duracion: str, mensaje: str, premio: str):
         if interaction.guild is None or interaction.channel is None:
             await interaction.response.send_message("Este comando solo funciona dentro de un servidor.", ephemeral=True)
             return
@@ -204,14 +204,21 @@ def register_giveaway_commands(tree, bot):
             giveaway_message = await interaction.channel.send(embed=_embed(state), view=GiveawayEntryView(), allowed_mentions=discord.AllowedMentions.none())
             state["message_id"] = giveaway_message.id
             _save(state)
-        except (OSError, discord.Forbidden, discord.HTTPException) as error:
+        except (OSError, discord.Forbidden, discord.HTTPException):
             await interaction.followup.send("No se pudo crear/guardar el sorteo. Revisa permisos y el volumen VANTARMOR_DATA_DIR.", ephemeral=True)
-            print(f"No se pudo crear sorteo: {type(error).__name__}")
             return
         _schedule(bot, giveaway_message.id)
         await interaction.followup.send(f"✅ Sorteo publicado en {interaction.channel.mention}.", ephemeral=True)
 
-    return sorteo
+    return giveaway_command
 
 
-__all__ = ["register_giveaway_commands", "resume_giveaways", "duration_seconds"]
+def register_giveaway_commands(tree, bot):
+    return _register_giveaway(tree, bot, "sorteo", "Crea un sorteo gratuito con botón para participar")
+
+
+def register_advanced_giveaway_commands(tree, bot):
+    return _register_giveaway(tree, bot, "sorteo-avanzado", "Crea un sorteo avanzado gratis con premio configurable")
+
+
+__all__ = ["register_giveaway_commands", "register_advanced_giveaway_commands", "resume_giveaways", "duration_seconds"]
