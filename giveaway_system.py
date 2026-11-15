@@ -68,7 +68,10 @@ def _embed(state, *, ended=None, winners=None, guild_name=None):
     embed.add_field(name="Participantes", value=str(len(state.get("entries", []))), inline=True)
     if ended:
         mentions = ", ".join(f"<@{uid}>" for uid in (winners or []))
-        embed.description = f"**{state['prize']}**\n\n{mentions + ' han ganado su premio. ¡Felicidades!' if mentions else 'No hubo participantes. ¡Gracias por participar!'}"
+        if mentions:
+            embed.description = f"**Premio:** {state['prize']}\n\n{mentions} han ganado su premio. ¡Felicidades!"
+        else:
+            embed.description = "No hubo participantes. Gracias por participar."
         if guild_name:
             embed.set_footer(text=f"Sorteo de {guild_name}")
     else:
@@ -133,8 +136,8 @@ async def _notify_winners(bot, guild, state, winners, preferred_channel=None):
         try:
             user = bot.get_user(int(user_id)) or await bot.fetch_user(int(user_id))
             embed = discord.Embed(
-                title="🎉 ¡Felicidades, ganaste el sorteo!",
-                description=f"Has ganado **{state['prize']}** en el servidor **{guild.name}**. ¡Felicidades!",
+                title="🎉 Felicidades, acabas de ganar el sorteo",
+                description=f"**Servidor:** {guild.name}\n**Premio:** {state['prize']}\n\n¡Felicidades! Acabas de ganar el sorteo **{guild.name}**.",
                 color=discord.Color.green(),
             )
             view = None
@@ -143,7 +146,6 @@ async def _notify_winners(bot, guild, state, winners, preferred_channel=None):
                 view.add_item(discord.ui.Button(label="Ir al servidor", style=discord.ButtonStyle.link, url=invite_url))
             await user.send(embed=embed, view=view)
         except (discord.Forbidden, discord.HTTPException, ValueError) as error:
-            # DMs may be disabled or the user may have blocked the bot; the public result remains available.
             print(f"No se pudo enviar DM al ganador {user_id}: {type(error).__name__}")
 
 
@@ -181,9 +183,10 @@ async def _finish_giveaway(bot, message_id):
             item.disabled = True
         await message.edit(embed=_embed(state, ended=True, winners=winners, guild_name=guild_name), view=view)
         if winners:
+            winner_mentions = ", ".join(f"<@{uid}>" for uid in winners)
             public_embed = discord.Embed(
-                title="🏆 ¡Tenemos ganadores!",
-                description=f"**Premio:** {state['prize']}\n\n{', '.join(f'<@{uid}>' for uid in winners)} han ganado su premio. ¡Felicidades!",
+                title="🏆 Sorteo finalizado",
+                description=f"**Premio:** {state['prize']}\n**Servidor:** {guild_name}\n\n{winner_mentions} han ganado su premio. ¡Felicidades!",
                 color=discord.Color.gold(),
             )
             public_embed.set_footer(text=f"Sorteo de {guild_name}")
