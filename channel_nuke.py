@@ -4,8 +4,6 @@ from typing import Optional
 import discord
 from discord import app_commands
 
-from premium_security_system import _require_premium_admin
-
 
 class NukeConfirmView(discord.ui.View):
     def __init__(self, requester_id: int, channel: discord.TextChannel):
@@ -33,15 +31,12 @@ class NukeConfirmView(discord.ui.View):
             await interaction.response.send_message("Al bot le falta el permiso Administrar canales.", ephemeral=True)
             return
 
-        button.disabled = True
         for item in self.children:
             item.disabled = True
         await interaction.response.edit_message(content="Recreando el canal…", view=self)
-
         original = self.channel
         replacement = None
         try:
-            # Clone first so a failed clone never destroys the original channel.
             replacement = await original.clone(reason=f"/nuke confirmado por {interaction.user} ({interaction.user.id})")
             await replacement.edit(position=original.position, reason="Restaurar la posición del canal recreado")
             await original.delete(reason=f"Canal recreado por /nuke de {interaction.user} ({interaction.user.id})")
@@ -50,24 +45,11 @@ class NukeConfirmView(discord.ui.View):
                 try:
                     await replacement.delete(reason="Limpieza tras fallo de /nuke; se conservó el canal original")
                 except (discord.Forbidden, discord.HTTPException):
-                    await interaction.followup.send(
-                        "No se pudo completar la recreación y tampoco eliminar el canal duplicado. "
-                        f"El canal original se conserva; revisa manualmente `{replacement.name}`. ({type(error).__name__})",
-                        ephemeral=True,
-                    )
+                    await interaction.followup.send("Falló la recreación; el original se conserva. Revisa manualmente el canal duplicado.", ephemeral=True)
                     return
-            await interaction.followup.send(
-                "No se pudo recrear el canal; el canal original se conserva. "
-                "Revisa que el bot tenga Administrar canales y que su rol permita gestionar el canal.",
-                ephemeral=True,
-            )
+            await interaction.followup.send("No se pudo recrear el canal; el original se conserva. Revisa el permiso Administrar canales.", ephemeral=True)
             return
-
-        await interaction.followup.send(
-            f"✅ Canal recreado: {replacement.mention}. Se conservaron los ajustes que Discord permite clonar; "
-            "los mensajes no se copian.",
-            ephemeral=True,
-        )
+        await interaction.followup.send(f"✅ Canal recreado: {replacement.mention}. Los mensajes no se copian.", ephemeral=True)
 
     @discord.ui.button(label="Cancelar", style=discord.ButtonStyle.secondary)
     async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -81,6 +63,10 @@ class NukeConfirmView(discord.ui.View):
 
 
 async def nuke_command(interaction: discord.Interaction, canal: Optional[discord.TextChannel] = None):
+    # Import lazily: railway_start.py applies compatibility fixes before app.py
+    # imports premium_security_system, so Optional is defined before decorators run.
+    from premium_security_system import _require_premium_admin
+
     if not await _require_premium_admin(interaction):
         return
     if not isinstance(interaction.user, discord.Member) or not interaction.user.guild_permissions.manage_channels:
@@ -98,16 +84,12 @@ async def nuke_command(interaction: discord.Interaction, canal: Optional[discord
     if bot_member is None or not bot_member.guild_permissions.manage_channels:
         await interaction.response.send_message("Al bot le falta el permiso Administrar canales.", ephemeral=True)
         return
-    if target.id == guild.rules_channel_id if hasattr(guild, "rules_channel_id") else False:
+    if getattr(guild, "rules_channel", None) == target:
         await interaction.response.send_message("No se puede recrear el canal de reglas con este comando.", ephemeral=True)
         return
-
-    view = NukeConfirmView(interaction.user.id, target)
     await interaction.response.send_message(
-        f"⚠️ Esto eliminará **#{target.name}** y creará un clon vacío. "
-        "Los mensajes no se copian y no se pueden recuperar. Confirma para continuar.",
-        view=view,
-        ephemeral=True,
+        f"⚠️ Esto eliminará **#{target.name}** y creará un clon vacío. Los mensajes no se copian. Confirma para continuar.",
+        view=NukeConfirmView(interaction.user.id, target), ephemeral=True,
     )
 
 
@@ -117,7 +99,6 @@ def register_channel_nuke(tree):
 
 
 def patch_app_file(app_file):
-    """Inject registration into app.py so the command is loaded with the bot."""
     source = app_file.read_text(encoding="utf-8")
     import_anchor = "from discord import app_commands\n"
     import_line = "from channel_nuke import register_channel_nuke\n"
